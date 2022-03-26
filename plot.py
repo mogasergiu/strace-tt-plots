@@ -4,35 +4,35 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import sys
 import re
-import threading
+import numpy as np
 
-class Counter:
-    def __init__(self, start = 0, total = 100):
-        self.lock = threading.Lock()
-        self.value = start
-        self.next_fraction = int(total / 100)
-        self.one_percent = int(total/ 100)
-        self.next_percentage = 1
+#class Counter:
+#    def __init__(self, start = 0, total = 100):
+#        self.lock = threading.Lock()
+#        self.value = start
+#        self.next_fraction = int(total / 100)
+#        self.one_percent = int(total/ 100)
+#        self.next_percentage = 1
+#
+#    def increment(self):
+#        self.lock.acquire()
+#        try:
+#            self.value = self.value + 1
+#
+#            if self.value == self.next_fraction:
+#                print("Done: " + self.next_percentage + "%")
+#                self.next_percentage += 1
+#                self.next_fraction += self.one_percent
+#
+#        finally:
+#            self.lock.release()
 
-    def increment(self):
-        self.lock.acquire()
-        try:
-            self.value = self.value + 1
+# def thread_func(left, right, delta_timestamps, syscall_names, counter):
+#     for dot in range(left, right):
+#         plt.plot(delta_timestamps[dot], syscall_names[dot], color = "red")
 
-            print(self.value, self.next_fraction)
-            if self.value == self.next_fraction:
-                print("Done: " + self.next_percentage + "%")
-                self.next_percentage += 1
-                self.next_fraction += self.one_percent
-
-        finally:
-            self.lock.release()
-
-def thread_func(left, right, delta_timestamps, syscall_names, counter):
-    for dot in range(left, right):
-        plt.scatter(delta_timestamps[dot], syscall_names[dot], c = "blue")
-
-        counter.increment()
+        # performance goes waaay down obviously
+        # counter.increment()
 
 # sys.argv[1] - strace output file from `strace -tt path/to/binary 2>strace_outfile`
 # sys.argv[2] - command delay
@@ -41,7 +41,7 @@ def thread_func(left, right, delta_timestamps, syscall_names, counter):
 if __name__ == "__main__":
     strace_outfile = sys.argv[1]
     cmd_delay = float(sys.argv[2])
-    threads_count = int(sys.argv[3])
+#    threads_count = int(sys.argv[3])
 
     with open(strace_outfile) as f:
         strace_results = f.read()
@@ -54,6 +54,10 @@ if __name__ == "__main__":
     syscall_timestamps = []
     for match in rgx.findall(strace_results):
         syscall_timestamp, syscall_name = match.split(' ')
+
+        # avoid empty left overs
+        if syscall_name == "":
+            continue
 
         syscall_timestamps.append(syscall_timestamp)
         syscall_names.append(syscall_name)
@@ -68,32 +72,36 @@ if __name__ == "__main__":
     delta_timestamps = list(reversed(delta_timestamps))
 
     for dot in range(len(delta_timestamps)):
-        if delta_timestamps[dot] <= cmd_delay:
-            plt.scatter(delta_timestamps[dot], syscall_names[dot], c = "magenta")
-        else:
+        if delta_timestamps[dot] > cmd_delay:
             benchmark_timestamp_dot = dot
             break
 
-    size_to_compute = len(delta_timestamps) - benchmark_timestamp_dot
-    size_to_compute_per_thread = int(size_to_compute / threads_count)
+#     size_to_compute = len(delta_timestamps) - benchmark_timestamp_dot
+#     size_to_compute_per_thread = int(size_to_compute / threads_count)
+# 
+#     threads = []
+#     counter = Counter(benchmark_timestamp_dot, len(delta_timestamps))
+#     for t in range(threads_count - 1):
+#         left = benchmark_timestamp_dot + t * size_to_compute_per_thread
+#         right = benchmark_timestamp_dot + (t + 1) * size_to_compute_per_thread
+#         threads.append(threading.Thread(target = thread_func, \
+#                         args = (left, right, delta_timestamps, syscall_names, counter,)))
+# 
+#     left = benchmark_timestamp_dot + (threads_count - 1) * size_to_compute_per_thread
+#     right = len(delta_timestamps)
+#     threads.append(threading.Thread(target = thread_func, \
+#                         args = (left, right, delta_timestamps, syscall_names, counter,)))
+# 
+#     for t in threads:
+#         t.start()
+# 	
+#     for t in threads:
+#         t.join()
 
-    threads = []
-    counter = Counter(benchmark_timestamp_dot, len(delta_timestamps))
-    for t in range(threads_count - 1):
-        left = benchmark_timestamp_dot + t * size_to_compute_per_thread
-        right = benchmark_timestamp_dot + (t + 1) * size_to_compute_per_thread
-        threads.append(threading.Thread(target = thread_func, \
-                        args = (left, right, delta_timestamps, syscall_names, counter,)))
+    plt.plot(delta_timestamps[:benchmark_timestamp_dot], \
+            syscall_names[:benchmark_timestamp_dot], 'o', color = 'blue')
 
-    left = benchmark_timestamp_dot + (threads_count - 1) * size_to_compute_per_thread
-    right = len(delta_timestamps)
-    threads.append(threading.Thread(target = thread_func, \
-                        args = (left, right, delta_timestamps, syscall_names, counter,)))
+    plt.plot(delta_timestamps[benchmark_timestamp_dot:], \
+            syscall_names[benchmark_timestamp_dot:], 'o', color = 'red')
 
-    for t in threads:
-        t.start()
-	
-    for t in threads:
-        t.join()
-	
     plt.show()
